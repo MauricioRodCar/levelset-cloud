@@ -6,6 +6,7 @@ Licence and subscription backend for [Levelset](https://github.com/MauricioRodCa
 
 - [docs/PRD.md](docs/PRD.md): requirements and decisions
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): design, data model, state machines, desktop client contract
+- [docs/PORTFOLIO.md](docs/PORTFOLIO.md): one-page summary, stack, skills shown, status
 
 **Planned stack:** Next.js + TypeScript, PostgreSQL (Neon) with Drizzle migrations, Stripe (test mode) behind a payment-provider adapter, Ed25519-signed licence tokens, Vitest + Playwright, GitHub Actions, Docker on Azure Container Apps.
 
