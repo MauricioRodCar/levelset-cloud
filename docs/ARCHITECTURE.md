@@ -99,6 +99,8 @@ Implemented as **pure transition tables** (`(state, event) → state | reject`) 
 
 Plan changes (monthly ↔ annual) update `plan_id` without changing state. When a snapshot skips states (lost or reordered webhooks), the recorded events are the shortest path through the table; ties go to the earlier row, so a subscription first seen mid-life is assumed to have started paid unless the provider says it is trialing. Implemented in `src/server/billing/machine.ts`. Entitled states: `trialing`, `active`, `cancel_scheduled`, `past_due` (FR-9).
 
+**Adapters.** `PaymentProvider` (`src/server/billing/types.ts`) has two implementations: `stripe-provider.ts` and the in-memory `fake-provider.ts`. Besides checkout, portal, webhooks, fetch/list/cancel and display prices, it exposes `checkoutStatus` (success page), optional `findCustomerRef` (a returning buyer reuses their provider customer) and optional `resolveSubscriptionRef` (a Stripe dispute names a payment, resolved via invoice payments → invoice → `parent.subscription_details`). The Stripe adapter uses the API version pinned by the SDK (`2026-09-30`), where the period end lives on subscription items. Stripe subscriptions have no update timestamp, so a snapshot's `updatedAt` is its fetch time. Stripe `paused` maps to `unpaid` (no Pro). Setup: [STRIPE-SETUP.md](STRIPE-SETUP.md).
+
 **Normalisation:** each adapter maps provider events to the normalized events above. The Stripe adapter does this by re-fetching the subscription and comparing its `status`, `cancel_at_period_end` and `trial_end` to the local row, rather than trusting the event type alone. That makes ordering irrelevant (FR-12). Snapshots older than `provider_updated_at` are ignored.
 
 ### 4.2 Licence
@@ -284,6 +286,8 @@ Levelset (Pro) ──WebSocket + token─────▶ relay (separate Contain
 | Integration | webhook pipeline with duplicate + out-of-order events, concurrent activation at the limit, version conflicts, audit append-only (UPDATE must fail), import commit idempotency, migration apply from empty | Vitest + real Postgres |
 | E2E (fake) | buy → licence → activate (via API as the desktop would) → cancel → entitlement ends; admin edits + audit; CSV import with duplicates | Playwright |
 | E2E (Stripe) | real test-mode Checkout with test cards, webhooks via Stripe CLI, billing portal cancel | Playwright, secrets-gated |
+
+E2E runs against `next dev` started by `scripts/e2e-server.mjs` (embedded Postgres locally, the CI service in CI). The fake provider is refused when `NODE_ENV=production`, so its suite uses the dev server; its stand-in hosted checkout is `/fake-checkout/[sessionId]`, which returns 404 under any other provider.
 
 CI (`ci.yml`, on PR and push): install → lint → typecheck → unit → integration (Postgres service) → migrations check → `next build` → Docker build → E2E fake → E2E Stripe (only if `STRIPE_SECRET_KEY` secret exists) → secret/price grep.
 

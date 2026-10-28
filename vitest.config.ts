@@ -14,6 +14,8 @@ export default defineConfig({
           name: "integration",
           include: ["tests/integration/**/*.test.ts"],
           globalSetup: ["tests/integration/global-setup.ts"],
+          // Files share one database and a few global rows (feature flags), so run them one at a time.
+          fileParallelism: false,
           testTimeout: 20_000,
           hookTimeout: 120_000,
         },

@@ -78,8 +78,9 @@ export async function processStoredEvent(ctx: BillingContext, webhookEventId: st
           outcome = "rejected";
           lastError = e.message;
         }
-      } else if (event.kind === "dispute" && event.subscriptionRef) {
-        outcome = (await suspendForDispute(tx, ctx, event.subscriptionRef, actor)) ? "processed" : "ignored";
+      } else if (event.kind === "dispute") {
+        const ref = event.subscriptionRef ?? (await ctx.provider.resolveSubscriptionRef?.(row.payload)) ?? null;
+        outcome = ref && (await suspendForDispute(tx, ctx, ref, actor)) ? "processed" : "ignored";
       } else {
         outcome = "ignored";
       }

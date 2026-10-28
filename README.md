@@ -35,10 +35,14 @@ npm run dev
 | `npm run test:integration` | Integration tests against real Postgres: `DATABASE_URL` if set, otherwise a throwaway embedded Postgres 16 (no Docker needed); migrations run first |
 | `npm run db:generate` · `npm run db:check` · `npm run db:migrate` | Create, verify and apply migrations in `drizzle/` |
 | `npm run db:seed` | Sync the product and plans with config (idempotent, audited) |
+| `npm run test:e2e` | Playwright purchase flow on the fake provider (starts its own Postgres and dev server) |
+| `npm run test:e2e:stripe` | Same on Stripe test mode (needs keys + `stripe listen`; see [docs/STRIPE-SETUP.md](docs/STRIPE-SETUP.md)) |
 | `npm run build` | Next.js standalone build + bundled jobs in `dist/jobs/` |
 | `docker compose --profile app up --build` | Production image with the migrate job run first |
 | `bash scripts/check-public-safety.sh` | Scan tracked files for live keys and prices |
 | `node scripts/generate-signing-key.mjs [kid]` | New Ed25519 licence-signing key for `LICENSE_SIGNING_KEYS` (a secret: host secret store only) |
+
+Pages: `/pricing` → checkout → `/checkout/success`. With `PAYMENT_PROVIDER=fake` (the default outside production) checkout goes to a local stand-in page, so the whole flow works without a Stripe account.
 
 Health: `GET /api/health` (liveness) and `GET /api/ready` (database reachable and all migrations applied).
 

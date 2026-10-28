@@ -1,8 +1,12 @@
 import type { Config } from "@/server/platform/config";
 import { FakePaymentProvider } from "./fake-provider";
+import { StripePaymentProvider } from "./stripe-provider";
 import type { PaymentProvider } from "./types";
 
-const globalForProvider = globalThis as unknown as { __levelsetFakeProvider?: FakePaymentProvider };
+const globalForProvider = globalThis as unknown as {
+  __levelsetFakeProvider?: FakePaymentProvider;
+  __levelsetStripeProvider?: StripePaymentProvider;
+};
 
 /**
  * The configured provider. The fake keeps its state in memory, so one instance
@@ -14,6 +18,7 @@ export function getPaymentProvider(config: Config): PaymentProvider {
       globalForProvider.__levelsetFakeProvider ??= new FakePaymentProvider({ baseUrl: config.APP_URL });
       return globalForProvider.__levelsetFakeProvider;
     case "stripe":
-      throw new Error("The Stripe adapter arrives in milestone 4");
+      globalForProvider.__levelsetStripeProvider ??= new StripePaymentProvider(config);
+      return globalForProvider.__levelsetStripeProvider;
   }
 }

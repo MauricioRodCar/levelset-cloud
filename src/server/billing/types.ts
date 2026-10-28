@@ -48,6 +48,8 @@ export type CheckoutInput = {
 
 export type DisplayPrice = { currency: string; unitAmount: number; interval: "month" | "year" };
 
+export type CheckoutStatus = { status: "open" | "complete" | "expired"; subscriptionRef: string | null };
+
 export interface PaymentProvider {
   readonly id: ProviderId;
   createCheckout(input: CheckoutInput): Promise<{ sessionId: string; url: string }>;
@@ -61,4 +63,10 @@ export interface PaymentProvider {
   cancelSubscription(ref: string, opts: { atPeriodEnd: boolean }): Promise<void>;
   /** Prices live in the provider, never in this repo. */
   getDisplayPrices(planKeys: readonly string[]): Promise<Record<string, DisplayPrice>>;
+  /** For the success page: has this checkout produced a subscription yet? */
+  checkoutStatus(sessionId: string): Promise<CheckoutStatus>;
+  /** Finds the provider customer for an email, so a returning buyer isn't duplicated. */
+  findCustomerRef?(email: string): Promise<string | null>;
+  /** Resolves the subscription for events that don't name it directly (e.g. a dispute names a payment). */
+  resolveSubscriptionRef?(payload: unknown): Promise<string | null>;
 }

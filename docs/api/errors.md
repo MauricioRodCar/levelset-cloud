@@ -19,6 +19,8 @@ Every error is an [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem (`a
 | `idempotency_in_progress` | 409 | Same `Idempotency-Key` is still being processed | Retry shortly with the same key |
 | `idempotency_key_reused` | 422 | Same `Idempotency-Key` sent with a different body | Bug in the client: use a new key per action |
 | `version_conflict` | 409 | Admin edit lost a race; `current` holds the latest row | Show the newer values and let the user retry |
+| `already_subscribed` | 409 | Checkout refused: this email already has a live Pro subscription | Send the buyer to the customer area |
+| `unknown_plan` | 404 | Checkout for a plan that doesn't exist or is inactive | — |
 | `not_found` | 404 | Entity doesn't exist | — |
 | `unknown_provider` | 404 | Webhook sent to a provider this deployment doesn't use | — |
 | `internal_error` | 500 | Unexpected failure (details only in server logs, by `request_id`) | Retry with backoff; the offline grace period covers outages |

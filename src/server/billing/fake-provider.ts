@@ -2,6 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { AppError } from "@/server/platform/errors";
 import type {
   CheckoutInput,
+  CheckoutStatus,
   DisplayPrice,
   NormalizedWebhook,
   PaymentProvider,
@@ -30,7 +31,7 @@ export class WebhookSignatureError extends AppError {
 }
 
 type FakeSubscription = Omit<SubscriptionSnapshot, "updatedAt"> & { updatedAt: Date };
-type FakeSession = { id: string; planKey: string; email: string; trialDays: number };
+type FakeSession = { id: string; planKey: string; email: string; trialDays: number; subscriptionRef: string | null };
 export type FakeDelivery = { eventId: string; type: string; body: string; headers: Headers };
 type FakeEventPayload = { id: string; type: string; created: number; data: { subscription: string | null } };
 
@@ -70,7 +71,13 @@ export class FakePaymentProvider implements PaymentProvider {
     const existing = this.sessionsByIdempotencyKey.get(input.idempotencyKey);
     const id = existing ?? this.nextId("cs");
     if (!existing) {
-      this.sessions.set(id, { id, planKey: input.planKey, email: input.email.trim().toLowerCase(), trialDays: input.trialDays ?? 0 });
+      this.sessions.set(id, {
+        id,
+        planKey: input.planKey,
+        email: input.email.trim().toLowerCase(),
+        trialDays: input.trialDays ?? 0,
+        subscriptionRef: null,
+      });
       this.sessionsByIdempotencyKey.set(input.idempotencyKey, id);
     }
     return { sessionId: id, url: `${this.baseUrl}/fake-checkout/${id}` };
@@ -125,12 +132,28 @@ export class FakePaymentProvider implements PaymentProvider {
     return Object.fromEntries(planKeys.filter((k) => prices[k]).map((k) => [k, prices[k]!]));
   }
 
+  async checkoutStatus(sessionId: string): Promise<CheckoutStatus> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new AppError("not_found", 404, `Fake provider: no checkout session ${sessionId}`);
+    return { status: session.subscriptionRef ? "complete" : "open", subscriptionRef: session.subscriptionRef };
+  }
+
+  async findCustomerRef(email: string): Promise<string | null> {
+    return this.customerRefs.get(email.trim().toLowerCase()) ?? null;
+  }
+
+  /** The session behind a fake checkout page, if any. */
+  getSession(sessionId: string): Readonly<FakeSession> | undefined {
+    return this.sessions.get(sessionId);
+  }
+
   // ── Simulation (tests and local development) ─────────────────────────────
 
   /** The customer finished checkout: `paid` → active, `trial` → trialing, `pending` → incomplete. */
   completeCheckout(sessionId: string, outcome: "paid" | "trial" | "pending" = "paid"): string {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Fake provider: unknown checkout session ${sessionId}`);
+    if (session.subscriptionRef) return session.subscriptionRef; // paying twice for one session does nothing
     const now = this.tick();
     const customerRef = this.customerRefs.get(session.email) ?? this.nextId("cus");
     this.customerRefs.set(session.email, customerRef);
@@ -147,6 +170,7 @@ export class FakePaymentProvider implements PaymentProvider {
       trialEnd: outcome === "trial" ? new Date(now.getTime() + Math.max(session.trialDays, 1) * DAY_MS) : null,
       updatedAt: now,
     });
+    session.subscriptionRef = ref;
     this.emit("checkout.session.completed", ref);
     this.emit("subscription.created", ref);
     return ref;
