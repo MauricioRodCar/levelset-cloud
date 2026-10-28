@@ -3,6 +3,9 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { TestProject } from "vitest/node";
+import { seedCatalog } from "../../src/server/catalog/seed";
+import { loadConfig } from "../../src/server/platform/config";
+import { createDb } from "../../src/server/platform/db";
 import { runMigrations } from "../../src/server/platform/migrate-runner";
 
 declare module "vitest" {
@@ -25,7 +28,7 @@ function freePort(): Promise<number> {
 /**
  * Uses DATABASE_URL when set (CI service, docker compose). Otherwise starts a
  * throwaway embedded Postgres 16 so integration tests run without Docker.
- * Either way, applies all migrations first.
+ * Either way, applies all migrations and seeds the catalog first.
  */
 export default async function setup(project: TestProject) {
   let url = process.env.DATABASE_URL;
@@ -54,6 +57,12 @@ export default async function setup(project: TestProject) {
   }
 
   await runMigrations(url, path.join(process.cwd(), "drizzle"));
+  const db = createDb(url, { max: 1 });
+  try {
+    await seedCatalog(db, loadConfig({ DATABASE_URL: url }));
+  } finally {
+    await db.$client.end();
+  }
   project.provide("databaseUrl", url);
   return teardown;
 }

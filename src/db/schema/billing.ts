@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { bigserial, index, integer, jsonb, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { customers } from "./accounts";
 import { plans } from "./catalog";
 import { id, tstz, versioned } from "./columns";
@@ -58,6 +58,24 @@ export const subscriptionTransitions = pgTable(
     event: text("event").notNull(),
     webhookEventId: uuid("webhook_event_id").references(() => webhookEvents.id),
     at: tstz("at").notNull().defaultNow(),
+    /** Insertion order: several transitions from one event share the same `at`. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
   },
-  (t) => [index("subscription_transitions_sub_idx").on(t.subscriptionId, t.at)],
+  (t) => [
+    index("subscription_transitions_sub_idx").on(t.subscriptionId, t.at),
+    index("subscription_transitions_sub_seq_idx").on(t.subscriptionId, t.seq),
+  ],
+);
+
+/** One row per billing reconciliation run (FR-15); the report is shown in the admin panel. */
+export const reconciliationRuns = pgTable(
+  "reconciliation_runs",
+  {
+    id: id(),
+    provider: paymentProvider("provider").notNull(),
+    startedAt: tstz("started_at").notNull(),
+    finishedAt: tstz("finished_at").notNull(),
+    report: jsonb("report").notNull(),
+  },
+  (t) => [index("reconciliation_runs_started_idx").on(t.startedAt)],
 );

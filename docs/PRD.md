@@ -67,7 +67,7 @@ IDs are referenced by tests and commits.
 - **FR-15** Nightly **billing reconciliation** compares provider subscriptions with local rows, writes a drift report, and fixes drift through the same transition code (audited as `system`).
 
 ### 4.4 Licences and desktop activation
-- **FR-16** Key format: `LSET-XXXXX-XXXXX-XXXXX-XXXXX` (Crockford base32 with a check character, so typos are caught offline). Only a keyed hash is stored. The key is shown once; a customer can **rotate** it, which deactivates its devices.
+- **FR-16** Key format: `LSET-XXXXX-XXXXX-XXXXX-XXXXX` (Crockford base32 with a check character, so typos are caught offline). Only a keyed hash is stored. A new subscription licence has no key until the customer first reveals it, which generates it and shows it once; a customer can **rotate** it, which deactivates its devices.
 - **FR-17** Licence kinds: `subscription` (follows its subscription), `tester` (full access, **expiry required**, revocable), `manual` (owner-issued, e.g. for press).
 - **FR-18** **Activate**: the key + device info (hashed device ID, label, OS, app version) returns a signed licence token. The same device activating again is idempotent and doesn't use a new slot. If the device limit is reached, the response is `409` with the list of active devices (labels + last seen) so the app can offer "deactivate one".
 - **FR-19** **Refresh**: the app exchanges its current token (+ key) for a new one. It returns the current tier and features, so revocation, cancellation and plan changes reach the app within one refresh.

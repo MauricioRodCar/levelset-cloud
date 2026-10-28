@@ -15,6 +15,13 @@
       "when": 1793171781039,
       "tag": "0001_audit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793172944400,
+      "tag": "0002_billing_core",
+      "breakpoints": true
     }
   ]
 }

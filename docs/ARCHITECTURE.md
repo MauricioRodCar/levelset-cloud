@@ -92,11 +92,12 @@ Implemented as **pure transition tables** (`(state, event) → state | reject`) 
 | `unpaid` | `payment.succeeded` | `active` |
 | `active`, `trialing` | `cancel.scheduled` | `cancel_scheduled` |
 | `cancel_scheduled` | `cancel.resumed` | `active` |
+| `cancel_scheduled` | `cancel.resumed_trial` | `trialing` |
 | `cancel_scheduled` | `period.ended` | `ended` |
 | any except `ended` | `subscription.canceled` (immediate, refund, unpaid end) | `ended` |
 | `ended` | anything | reject (a resubscription is a **new** subscription) |
 
-Plan changes (monthly ↔ annual) update `plan_id` without changing state. Entitled states: `trialing`, `active`, `cancel_scheduled`, `past_due` (FR-9).
+Plan changes (monthly ↔ annual) update `plan_id` without changing state. When a snapshot skips states (lost or reordered webhooks), the recorded events are the shortest path through the table; ties go to the earlier row, so a subscription first seen mid-life is assumed to have started paid unless the provider says it is trialing. Implemented in `src/server/billing/machine.ts`. Entitled states: `trialing`, `active`, `cancel_scheduled`, `past_due` (FR-9).
 
 **Normalisation:** each adapter maps provider events to the normalized events above. The Stripe adapter does this by re-fetching the subscription and comparing its `status`, `cancel_at_period_end` and `trial_end` to the local row, rather than trusting the event type alone. That makes ordering irrelevant (FR-12). Snapshots older than `provider_updated_at` are ignored.
 
@@ -130,8 +131,9 @@ Every mutable table has `id uuid`, `created_at`, `updated_at` and **`version int
 | `users` | `email citext` unique, `role enum(customer, support, owner)`, `totp_secret_enc`, `deleted_at` |
 | `customers` | `user_id` unique, `provider`, `provider_customer_id` unique per provider |
 | `subscriptions` | `customer_id`, `plan_id`, `provider_subscription_id` unique per provider, `state enum`, `current_period_end`, `trial_end`, `provider_updated_at` |
-| `subscription_transitions` | `subscription_id`, `from_state`, `to_state`, `webhook_event_id`, `at` |
-| `licenses` | `customer_id`, `product_id`, `kind enum`, `subscription_id` **unique nullable**, `key_hash` unique, `key_hint` (last 4), `status enum`, `expires_at`, `device_limit_override` |
+| `subscription_transitions` | `subscription_id`, `from_state`, `to_state`, `event`, `webhook_event_id`, `at`, `seq` (insertion order) |
+| `reconciliation_runs` | `provider`, `started_at`, `finished_at`, `report jsonb` |
+| `licenses` | `customer_id`, `product_id`, `kind enum`, `subscription_id` **unique nullable**, `key_hash` unique nullable, `key_hint` (last 4) — both null until the customer first reveals the key, which generates it (the plaintext is never stored), `status enum`, `expires_at`, `device_limit_override` |
 | `activations` | `license_id`, `device_hash`, `label`, `os`, `app_version`, `first_seen_at`, `last_seen_at`, `deactivated_at`; **partial unique** `(license_id, device_hash) where deactivated_at is null` |
 | `webhook_events` | `provider`, `event_id` (**unique pair**), `type`, `payload jsonb`, `received_at`, `processed_at`, `attempts`, `last_error` |
 | `idempotency_keys` | PK `(scope, key)`, `request_hash`, `state enum(in_progress, done)`, `response_status`, `response_body jsonb`, `expires_at` |
@@ -187,7 +189,7 @@ Activation takes `SELECT … FROM licenses WHERE id = $1 FOR UPDATE`, counts act
 
 ### 6.4 Billing reconciliation (FR-15)
 
-`jobs/reconcile.ts` (nightly, plus an admin button) iterates `adapter.listSubscriptions()` and compares each one with its local row. It applies missing transitions through the same machine (actor `system`), flags orphans on either side, and stores a report shown in the admin panel.
+`node jobs/billing.mjs reconcile` (nightly, plus an admin button later) iterates `adapter.listSubscriptions()` and compares each one with its local row. It applies missing transitions through the same machine (actor `system`), flags orphans on either side, and stores a report shown in the admin panel.
 
 ## 7. Levelset client contract (desktop integration)
 
@@ -260,7 +262,7 @@ Levelset (Pro) ──WebSocket + token─────▶ relay (separate Contain
 | prod (portfolio) | Neon main branch | Stripe **test mode** | Azure Container Apps |
 
 - **Image:** multi-stage Dockerfile (deps → build → `node:22-slim` runner, non-root user, standalone output).
-- **Azure:** one Container Apps environment. App: min replicas 0, max 1–2, HTTP ingress. Jobs: `migrate` then `seed` (catalog sync from config; both run on every deploy), `reconcile` (nightly), `retry-webhooks` (every 15 min), `purge` (daily). The image comes from GitHub Container Registry (free for public repos), so there's no paid Azure Container Registry.
+- **Azure:** one Container Apps environment. App: min replicas 0, max 1–2, HTTP ingress. Jobs: `migrate` then `seed` (catalog sync from config; both run on every deploy), `billing.mjs reconcile` (nightly), `billing.mjs retry-webhooks` (every 15 min), `purge` (daily). The image comes from GitHub Container Registry (free for public repos), so there's no paid Azure Container Registry.
 - **Cost:** the app and jobs fit inside the Container Apps monthly free grant at portfolio traffic, and Neon free covers the DB. Check the current free-tier limits when creating the account and set an Azure budget alert at $1.
 - **Deploy workflow:** added later, manual `workflow_dispatch` only, once the owner has created the Azure resources. Nothing is deployed automatically from this repo before then.
 

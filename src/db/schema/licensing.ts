@@ -21,9 +21,12 @@ export const licenses = pgTable(
     subscriptionId: uuid("subscription_id")
       .unique()
       .references(() => subscriptions.id),
-    /** HMAC of the key; the key itself is never stored (FR-16). */
-    keyHash: text("key_hash").notNull().unique(),
-    keyHint: text("key_hint").notNull(),
+    /**
+     * HMAC of the key; the key itself is never stored (FR-16). Null until the
+     * customer first reveals the key, which generates it (shown once).
+     */
+    keyHash: text("key_hash").unique(),
+    keyHint: text("key_hint"),
     status: licenseStatus("status").notNull().default("active"),
     expiresAt: tstz("expires_at"),
     deviceLimitOverride: integer("device_limit_override"),

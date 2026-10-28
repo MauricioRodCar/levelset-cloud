@@ -1,7 +1,7 @@
 import { and, eq, getTableName, sql, type InferSelectModel } from "drizzle-orm";
 import type { PgColumn, PgTable, PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { type AuditActor, diffChanges, writeAudit } from "./audit";
-import type { Db } from "./db";
+import type { DbOrTx } from "./db";
 import { NotFoundError, VersionConflictError } from "./errors";
 
 /**
@@ -31,8 +31,9 @@ export type UpdateAuditedOptions<T extends VersionedTable> = {
   pepper?: string;
 };
 
+/** Runs in its own transaction, or a savepoint when `db` is already a transaction. */
 export async function updateAudited<T extends VersionedTable>(
-  db: Db,
+  db: DbOrTx,
   opts: UpdateAuditedOptions<T>,
 ): Promise<InferSelectModel<T>> {
   const { table, pk, id, expectedVersion } = opts;

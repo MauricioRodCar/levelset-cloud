@@ -132,6 +132,16 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   return result.data;
 }
 
+/** Not a secret: only used outside production, where KEY_HASH_PEPPER is required. */
+const DEV_PEPPER = "levelset-dev-pepper-not-a-secret";
+
+/** Pepper for keyed hashes (licence keys, device IDs, PII in audit rows). */
+export function hashPepper(config: Config): string {
+  if (config.KEY_HASH_PEPPER) return config.KEY_HASH_PEPPER;
+  if (config.NODE_ENV === "production") throw new ConfigError(["KEY_HASH_PEPPER: is required"]);
+  return DEV_PEPPER;
+}
+
 let cached: Config | undefined;
 
 /** Reads process.env once per process. */
