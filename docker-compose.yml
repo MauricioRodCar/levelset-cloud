@@ -22,7 +22,8 @@ services:
   migrate:
     profiles: [app]
     build: .
-    command: ["node", "jobs/migrate.mjs"]
+    command: ["sh", "-c", "node jobs/migrate.mjs && node jobs/seed.mjs"]
+    env_file: [.env]
     environment:
       DATABASE_URL: postgres://levelset:levelset@db:5432/levelset
     depends_on:

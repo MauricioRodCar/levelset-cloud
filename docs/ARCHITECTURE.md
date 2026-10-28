@@ -141,7 +141,7 @@ Every mutable table has `id uuid`, `created_at`, `updated_at` and **`version int
 | `feature_flags` | `key` PK, `enabled`, `updated_by` (+ version) |
 | `rate_limits` | `(bucket, window_start)` PK, `count`; buckets use hashed IP / key |
 
-**Append-only audit:** the app's DB role is granted only `INSERT, SELECT` on `audit_log`, and a `BEFORE UPDATE OR DELETE` trigger raises an exception, a second layer in case of a misconfigured role. Audit rows never contain raw emails or keys (hashed or field-name only), so an ARCO deletion doesn't need to touch them.
+**Append-only audit:** the app's DB role is granted only `INSERT, SELECT` on `audit_log`, and triggers reject `UPDATE`, `DELETE` (per row) and `TRUNCATE` (per statement) for every role, a second layer in case of a misconfigured role (migration `0001_audit_append_only.sql`). Audit rows never contain raw emails or keys (hashed or field-name only), so an ARCO deletion doesn't need to touch them.
 
 **Optimistic concurrency:** `UPDATE … SET …, version = version + 1 WHERE id = $1 AND version = $2 RETURNING *`. Zero rows → `409 version_conflict` with the current row. Admin forms carry the version in a hidden field.
 
@@ -260,13 +260,13 @@ Levelset (Pro) ──WebSocket + token─────▶ relay (separate Contain
 | prod (portfolio) | Neon main branch | Stripe **test mode** | Azure Container Apps |
 
 - **Image:** multi-stage Dockerfile (deps → build → `node:22-slim` runner, non-root user, standalone output).
-- **Azure:** one Container Apps environment. App: min replicas 0, max 1–2, HTTP ingress. Jobs (cron): `migrate` (also triggered manually on deploy), `reconcile` (nightly), `retry-webhooks` (every 15 min), `purge` (daily). The image comes from GitHub Container Registry (free for public repos), so there's no paid Azure Container Registry.
+- **Azure:** one Container Apps environment. App: min replicas 0, max 1–2, HTTP ingress. Jobs: `migrate` then `seed` (catalog sync from config; both run on every deploy), `reconcile` (nightly), `retry-webhooks` (every 15 min), `purge` (daily). The image comes from GitHub Container Registry (free for public repos), so there's no paid Azure Container Registry.
 - **Cost:** the app and jobs fit inside the Container Apps monthly free grant at portfolio traffic, and Neon free covers the DB. Check the current free-tier limits when creating the account and set an Azure budget alert at $1.
 - **Deploy workflow:** added later, manual `workflow_dispatch` only, once the owner has created the Azure resources. Nothing is deployed automatically from this repo before then.
 
 ### Configuration (env names; values never committed)
 
-`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `APP_URL`, `PAYMENT_PROVIDER` (`stripe|fake`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `STRIPE_ALLOW_LIVE` (false; refuses non-`sk_test_` keys), `LICENSE_SIGNING_KEYS`, `LICENSE_ACTIVE_KID`, `KEY_HASH_PEPPER`, `SESSION_SECRET`, `EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `TOKEN_TTL_DAYS` (7), `TOKEN_REFRESH_HOURS` (24), `DEFAULT_DEVICE_LIMIT` (2), `TRANSFER_COOLDOWN_HOURS`, `TRIAL_DAYS`, `AUDIT_RETENTION_YEARS` (5), `DEVICE_PURGE_MONTHS` (12), `FLAG_TRIALS`, `FLAG_SELF_SERVE_TRANSFER`, `MIGRATIONS_DIR` (migrate job only).
+`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `APP_URL`, `PAYMENT_PROVIDER` (`stripe|fake`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `STRIPE_ALLOW_LIVE` (false; refuses non-`sk_test_` keys), `LICENSE_SIGNING_KEYS`, `LICENSE_ACTIVE_KID`, `KEY_HASH_PEPPER` (required in production), `SESSION_SECRET`, `EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `PRO_FEATURES` (feature names Pro plans grant; synced by the seed job), `TOKEN_TTL_DAYS` (7), `TOKEN_REFRESH_HOURS` (24), `DEFAULT_DEVICE_LIMIT` (2), `TRANSFER_COOLDOWN_HOURS`, `TRIAL_DAYS`, `AUDIT_RETENTION_YEARS` (5), `DEVICE_PURGE_MONTHS` (12), `FLAG_TRIALS`, `FLAG_SELF_SERVE_TRANSFER`, `MIGRATIONS_DIR` (migrate job only).
 
 ## 11. Testing and CI
 

@@ -66,8 +66,16 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...live, STRIPE_ALLOW_LIVE: "true" }).STRIPE_ALLOW_LIVE).toBe(true);
   });
 
-  it("refuses the fake provider in production", () => {
-    expect(problems({ ...base, NODE_ENV: "production" })).toEqual(["PAYMENT_PROVIDER: cannot be 'fake' in production"]);
+  it("refuses the fake provider in production and requires the hash pepper there", () => {
+    expect(problems({ ...base, NODE_ENV: "production" })).toEqual([
+      "PAYMENT_PROVIDER: cannot be 'fake' in production",
+      "KEY_HASH_PEPPER: is required",
+    ]);
+  });
+
+  it("parses the Pro feature list", () => {
+    expect(loadConfig({ ...base, PRO_FEATURES: "feature_a, feature_b," }).PRO_FEATURES).toEqual(["feature_a", "feature_b"]);
+    expect(problems({ ...base, PRO_FEATURES: "Bad Name" })[0]).toMatch(/^PRO_FEATURES/);
   });
 
   it("checks cross-field rules", () => {

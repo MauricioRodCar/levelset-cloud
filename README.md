@@ -24,6 +24,7 @@ npm ci
 cp .env.example .env
 docker compose up -d db mailpit
 npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
@@ -31,8 +32,9 @@ npm run dev
 |---|---|
 | `npm run lint` · `npm run typecheck` | ESLint, TypeScript |
 | `npm test` | Unit tests (no database) |
-| `npm run test:integration` | Integration tests against `DATABASE_URL` (migrate first) |
+| `npm run test:integration` | Integration tests against real Postgres: `DATABASE_URL` if set, otherwise a throwaway embedded Postgres 16 (no Docker needed); migrations run first |
 | `npm run db:generate` · `npm run db:check` · `npm run db:migrate` | Create, verify and apply migrations in `drizzle/` |
+| `npm run db:seed` | Sync the product and plans with config (idempotent, audited) |
 | `npm run build` | Next.js standalone build + bundled jobs in `dist/jobs/` |
 | `docker compose --profile app up --build` | Production image with the migrate job run first |
 | `bash scripts/check-public-safety.sh` | Scan tracked files for live keys and prices |

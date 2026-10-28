@@ -4,6 +4,9 @@ import * as schema from "@/db/schema";
 import { getConfig } from "./config";
 
 export type Db = ReturnType<typeof createDb>;
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+/** Functions that write take either; callers decide the transaction boundary. */
+export type DbOrTx = Db | Tx;
 
 export function createDb(url: string, options: { max?: number } = {}) {
   const client = postgres(url, { max: options.max ?? 5, prepare: false, onnotice: () => {} });

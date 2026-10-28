@@ -49,6 +49,17 @@ const schema = z
     EMAIL_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
     OWNER_EMAILS: emailList,
+    /** Feature names granted by Pro plans; deployment config, so the public repo doesn't decide them. */
+    PRO_FEATURES: z
+      .string()
+      .default("")
+      .transform((raw) =>
+        raw
+          .split(",")
+          .map((f) => f.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.string().regex(/^[a-z][a-z0-9_]*$/, "feature names are snake_case"))),
 
     TOKEN_TTL_DAYS: positiveInt(7),
     TOKEN_REFRESH_HOURS: positiveInt(24),
@@ -84,6 +95,7 @@ const schema = z
     if (env.PAYMENT_PROVIDER === "fake" && env.NODE_ENV === "production") {
       ctx.addIssue({ code: "custom", path: ["PAYMENT_PROVIDER"], message: "cannot be 'fake' in production" });
     }
+    if (env.NODE_ENV === "production" && !env.KEY_HASH_PEPPER) missing("KEY_HASH_PEPPER");
     if (env.EMAIL_PROVIDER !== "console") {
       if (!env.EMAIL_API_KEY) missing("EMAIL_API_KEY");
       if (!env.EMAIL_FROM) missing("EMAIL_FROM");

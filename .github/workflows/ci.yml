@@ -67,6 +67,11 @@ jobs:
         run: npm run db:migrate
       - name: Apply again (must be a no-op)
         run: npm run db:migrate
+      - name: Seed the catalog twice (second run must change nothing)
+        run: |
+          npm run db:seed
+          npm run db:seed | tee seed.log
+          grep -q "created \[\], updated \[\]" seed.log
       - run: npm run test:integration
 
   build:

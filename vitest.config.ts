@@ -9,8 +9,14 @@ export default defineConfig({
       { resolve: { alias }, test: { name: "unit", include: ["tests/unit/**/*.test.ts"] } },
       {
         resolve: { alias },
-        // Needs DATABASE_URL pointing at a migrated Postgres (docker compose locally, a service in CI).
-        test: { name: "integration", include: ["tests/integration/**/*.test.ts"], fileParallelism: false },
+        // Uses DATABASE_URL if set (CI service, docker compose), else an embedded Postgres 16.
+        test: {
+          name: "integration",
+          include: ["tests/integration/**/*.test.ts"],
+          globalSetup: ["tests/integration/global-setup.ts"],
+          testTimeout: 20_000,
+          hookTimeout: 120_000,
+        },
       },
     ],
   },
