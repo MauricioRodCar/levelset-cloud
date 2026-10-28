@@ -6,9 +6,10 @@ A one-page summary for anyone (or any assistant) building resume and portfolio m
 
 | Date | Stage | What exists |
 |---|---|---|
-| 2026-10-28 | **Planning: docs drafted, awaiting owner approval** | PRD, architecture, README. **No application code yet.** |
+| 2026-10-28 | Planning | PRD and architecture written and approved by the owner. |
+| 2026-10-28 | **Milestone 0: scaffold (current)** | Next.js 16 + TypeScript project, typed env config with safety guards (test-mode-only Stripe keys, no fake provider in production), Drizzle setup, `/api/health` + `/api/ready` with migration reconciliation, migrate job, Dockerfile + docker compose, OpenAPI skeleton of the desktop contract, GitHub Actions CI (lint, typecheck, unit + integration tests, migration checks, container smoke test, secret/price scan). **No business features yet** (licences, billing, admin start in milestones 1–7). |
 
-Describe the project only up to its current stage. While it is in planning, phrase it as "designed / specified", not "built / shipped". Update this table at each milestone (ARCHITECTURE §12).
+Describe the project only up to its current stage: name only what the table says exists as "built", and everything else as "designed / specified". Update this table at each milestone (ARCHITECTURE §12).
 
 ## One-liner
 
@@ -25,7 +26,7 @@ Licence and subscription backend for Levelset, an open-source Windows trading ap
 
 | Area | Technology |
 |---|---|
-| Language / framework | TypeScript (strict), Next.js 15 App Router, Node 22 |
+| Language / framework | TypeScript (strict), Next.js 16 App Router, Node 22 |
 | Database | PostgreSQL 16 (Neon), Drizzle ORM, versioned SQL migrations (drizzle-kit) |
 | Payments | Stripe (test mode: Checkout, Billing customer portal, webhooks) behind a provider adapter |
 | Auth / security | Email magic links, DB sessions, TOTP 2FA for admins, Ed25519-signed JWS licence tokens (`jose`), JWKS, HMAC-hashed keys |

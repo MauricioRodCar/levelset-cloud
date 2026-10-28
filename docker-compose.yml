@@ -1,0 +1,50 @@
+# Local development. `docker compose up -d db mailpit` for `npm run dev`;
+# `docker compose --profile app up --build` runs the production image;
+# `docker compose --profile stripe up stripe` forwards Stripe test-mode webhooks.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: levelset
+      POSTGRES_PASSWORD: levelset # local-only throwaway credential
+      POSTGRES_DB: levelset
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U levelset"]
+      interval: 2s
+      retries: 15
+
+  mailpit: # catches magic-link emails in development (UI on :8025)
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+
+  migrate:
+    profiles: [app]
+    build: .
+    command: ["node", "jobs/migrate.mjs"]
+    environment:
+      DATABASE_URL: postgres://levelset:levelset@db:5432/levelset
+    depends_on:
+      db: { condition: service_healthy }
+
+  app:
+    profiles: [app]
+    build: .
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://levelset:levelset@db:5432/levelset
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  stripe:
+    profiles: [stripe]
+    image: stripe/stripe-cli:latest
+    command: ["listen", "--forward-to", "http://host.docker.internal:3000/api/webhooks/stripe"]
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY:?set STRIPE_SECRET_KEY (sk_test_...) in your shell}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+volumes:
+  pgdata:

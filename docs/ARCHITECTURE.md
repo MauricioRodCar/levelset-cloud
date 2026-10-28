@@ -1,4 +1,4 @@
-# levelset-cloud — Architecture (v0.1, draft for sign-off)
+# levelset-cloud — Architecture (v0.1, approved 2026-10-28)
 
 Companion to [PRD.md](PRD.md). FR-n refers to PRD requirements.
 
@@ -9,7 +9,7 @@ Companion to [PRD.md](PRD.md). FR-n refers to PRD requirements.
  Rust shell: license module                     Next.js pages (en/es)
    │  HTTPS: activate / refresh / deactivate        │
    ▼                                                ▼
-┌──────────────────────── levelset-cloud (Docker, Next.js 15, Node 22) ─────────────────┐
+┌──────────────────────── levelset-cloud (Docker, Next.js 16, Node 22) ─────────────────┐
 │ Route handlers  /api/v1/licenses/*  /api/v1/checkout  /api/webhooks/[provider]       │
 │                 /api/v1/account/*   /api/v1/admin/*   /.well-known/jwks.json         │
 │ Pages           /pricing  /account/*  /admin/*  (server components + server actions) │
@@ -35,7 +35,7 @@ Domain logic lives in `src/server/` with no Next.js imports, so it can be unit-t
 
 | Concern | Choice | Why |
 |---|---|---|
-| Framework | **Next.js 15 (App Router) + TypeScript (strict)**, `output: "standalone"` | One deployable for API, customer area and admin; standalone build → small Docker image |
+| Framework | **Next.js 16 (App Router) + TypeScript (strict)**, `output: "standalone"` | One deployable for API, customer area and admin; standalone build → small Docker image |
 | DB | **PostgreSQL 16 on Neon** (free tier) | Serverless Postgres, branch DBs for previews; plain Postgres → portable |
 | ORM / migrations | **Drizzle ORM + drizzle-kit** | SQL-first, committed `.sql` migrations, light runtime (cold starts), easy `FOR UPDATE` / version checks |
 | Validation | Zod | Shared request schemas → OpenAPI (`zod-openapi`) |
@@ -266,7 +266,7 @@ Levelset (Pro) ──WebSocket + token─────▶ relay (separate Contain
 
 ### Configuration (env names; values never committed)
 
-`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `APP_URL`, `PAYMENT_PROVIDER` (`stripe|fake`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `LICENSE_SIGNING_KEYS`, `LICENSE_ACTIVE_KID`, `KEY_HASH_PEPPER`, `SESSION_SECRET`, `EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `TOKEN_TTL_DAYS` (7), `TOKEN_REFRESH_HOURS` (24), `DEFAULT_DEVICE_LIMIT` (2), `TRANSFER_COOLDOWN_HOURS`, `TRIAL_DAYS`, `AUDIT_RETENTION_YEARS` (5), `DEVICE_PURGE_MONTHS` (12), `FLAG_TRIALS`, `FLAG_SELF_SERVE_TRANSFER`.
+`DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `APP_URL`, `PAYMENT_PROVIDER` (`stripe|fake`), `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_MONTHLY`, `STRIPE_PRICE_PRO_ANNUAL`, `STRIPE_ALLOW_LIVE` (false; refuses non-`sk_test_` keys), `LICENSE_SIGNING_KEYS`, `LICENSE_ACTIVE_KID`, `KEY_HASH_PEPPER`, `SESSION_SECRET`, `EMAIL_PROVIDER`, `EMAIL_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `TOKEN_TTL_DAYS` (7), `TOKEN_REFRESH_HOURS` (24), `DEFAULT_DEVICE_LIMIT` (2), `TRANSFER_COOLDOWN_HOURS`, `TRIAL_DAYS`, `AUDIT_RETENTION_YEARS` (5), `DEVICE_PURGE_MONTHS` (12), `FLAG_TRIALS`, `FLAG_SELF_SERVE_TRANSFER`, `MIGRATIONS_DIR` (migrate job only).
 
 ## 11. Testing and CI
 

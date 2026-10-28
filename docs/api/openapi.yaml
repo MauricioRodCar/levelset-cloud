@@ -1,0 +1,256 @@
+openapi: 3.1.0
+info:
+  title: levelset-cloud API
+  version: 0.0.0
+  summary: Licence and subscription backend for Levelset.
+  description: |
+    Skeleton (milestone 0). Paths marked `x-milestone` are specified in
+    docs/ARCHITECTURE.md §7 but not implemented yet. The desktop contract
+    (licences + JWKS) is frozen in milestone 8 for the Levelset client task.
+    Errors use RFC 9457 problem details with a stable `code`.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:3000
+    description: Local development
+tags:
+  - name: ops
+  - name: licences
+    description: Desktop activation contract (ARCHITECTURE §7)
+
+paths:
+  /api/health:
+    get:
+      tags: [ops]
+      summary: Liveness. The process is up; never touches the database.
+      operationId: getHealth
+      responses:
+        "200":
+          description: Alive
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: ok }
+
+  /api/ready:
+    get:
+      tags: [ops]
+      summary: Readiness. Database reachable and every bundled migration applied.
+      operationId: getReady
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "503":
+          description: Not ready (config invalid, database unavailable, or migrations pending)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+
+  /api/v1/licenses/activate:
+    post:
+      tags: [licences]
+      x-milestone: 3
+      summary: Activate a licence key on this device and get a signed token.
+      operationId: activateLicense
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActivateRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Token" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409":
+          description: "`device_limit_reached` (includes `devices`) or `idempotency_in_progress`"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/DeviceLimitProblem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/licenses/refresh:
+    post:
+      tags: [licences]
+      x-milestone: 3
+      summary: Exchange the current token for a fresh one with the current tier and features.
+      operationId: refreshLicense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, token]
+              properties:
+                key: { $ref: "#/components/schemas/LicenseKey" }
+                token: { type: string, description: Current licence token (JWS) }
+      responses:
+        "200": { $ref: "#/components/responses/Token" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/licenses/deactivate:
+    post:
+      tags: [licences]
+      x-milestone: 3
+      summary: Free this device's slot.
+      operationId: deactivateLicense
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, device_id_hash]
+              properties:
+                key: { $ref: "#/components/schemas/LicenseKey" }
+                device_id_hash: { $ref: "#/components/schemas/DeviceIdHash" }
+      responses:
+        "204": { description: Deactivated (also when already inactive) }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /.well-known/jwks.json:
+    get:
+      tags: [licences]
+      x-milestone: 3
+      summary: Ed25519 public keys used to verify licence tokens offline.
+      operationId: getJwks
+      responses:
+        "200":
+          description: JSON Web Key Set
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      required: [kty, crv, x, kid, alg, use]
+                      properties:
+                        kty: { const: OKP }
+                        crv: { const: Ed25519 }
+                        x: { type: string }
+                        kid: { type: string }
+                        alg: { const: EdDSA }
+                        use: { const: sig }
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Same key + same body replays the stored response; same key + different body returns 422.
+      schema: { type: string, minLength: 8, maxLength: 128 }
+
+  responses:
+    Token:
+      description: Signed licence token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/TokenResponse" }
+    Problem:
+      description: Error (RFC 9457)
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Readiness:
+      type: object
+      required: [status]
+      properties:
+        status: { enum: [ready, migrations_pending, database_unavailable, config_invalid] }
+        migrations:
+          type: object
+          properties:
+            bundled: { type: integer }
+            applied: { type: integer }
+            pending: { type: integer }
+            unknown: { type: integer }
+            upToDate: { type: boolean }
+
+    LicenseKey:
+      type: string
+      pattern: "^LSET(-[0-9A-HJKMNP-TV-Z]{5}){4}$"
+      description: Crockford base32 groups; the last character is a check symbol.
+      examples: ["LSET-ABCDE-FGHJK-MNPQR-STVWX"]
+
+    DeviceIdHash:
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+      description: SHA-256 of "levelset-device-v1:" + Windows MachineGuid (hex). The raw GUID is never sent.
+
+    ActivateRequest:
+      type: object
+      required: [key, device]
+      properties:
+        key: { $ref: "#/components/schemas/LicenseKey" }
+        device:
+          type: object
+          required: [id_hash, label, os, app_version]
+          properties:
+            id_hash: { $ref: "#/components/schemas/DeviceIdHash" }
+            label: { type: string, maxLength: 64 }
+            os: { type: string, maxLength: 64 }
+            app_version: { type: string, maxLength: 32 }
+
+    TokenResponse:
+      type: object
+      required: [token, refresh_after, expires_at, tier, features]
+      properties:
+        token: { type: string, description: "JWS, alg EdDSA (claims: ARCHITECTURE §7.2)" }
+        refresh_after: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        tier: { enum: [pro, tester] }
+        features: { type: array, items: { type: string } }
+
+    Device:
+      type: object
+      required: [label, last_seen_at]
+      properties:
+        label: { type: string }
+        os: { type: string }
+        last_seen_at: { type: string, format: date-time }
+
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code:
+          enum:
+            - invalid_key
+            - license_revoked
+            - license_not_entitled
+            - device_limit_reached
+            - device_deactivated
+            - rate_limited
+            - idempotency_in_progress
+            - idempotency_key_reused
+            - validation_failed
+
+    DeviceLimitProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          properties:
+            devices:
+              type: array
+              items: { $ref: "#/components/schemas/Device" }

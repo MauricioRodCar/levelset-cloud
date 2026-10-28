@@ -1,0 +1,95 @@
+# CI skeleton (ARCHITECTURE §11). E2E jobs (fake provider, then Stripe test mode,
+# secrets-gated) are added with milestones 2 and 4.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests, safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: No secrets or prices in tracked files
+        run: bash scripts/check-public-safety.sh
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  database:
+    name: Migrations and integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: levelset
+          POSTGRES_PASSWORD: levelset # throwaway CI database
+          POSTGRES_DB: levelset
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U levelset"
+          --health-interval 2s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://levelset:levelset@localhost:5432/levelset
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Migrations are consistent
+        run: npm run db:check
+      - name: Schema and committed migrations match (generate produces no diff)
+        run: |
+          npm run db:generate
+          git add -A drizzle
+          git diff --cached --exit-code -- drizzle
+      - name: Apply all migrations to an empty database
+        run: npm run db:migrate
+      - name: Apply again (must be a no-op)
+        run: npm run db:migrate
+      - run: npm run test:integration
+
+  build:
+    name: Build and container smoke test
+    runs-on: ubuntu-latest
+    needs: [checks]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - name: Docker build
+        run: docker build -t levelset-cloud:ci .
+      - name: Container answers /api/health
+        run: |
+          docker run -d --name app -p 3000:3000 \
+            -e DATABASE_URL=postgres://none@127.0.0.1:1/none \
+            -e PAYMENT_PROVIDER=stripe -e STRIPE_SECRET_KEY=sk_test_ci -e STRIPE_WEBHOOK_SECRET=whsec_ci \
+            -e STRIPE_PRICE_PRO_MONTHLY=price_ci -e STRIPE_PRICE_PRO_ANNUAL=price_ci \
+            levelset-cloud:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/api/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:3000/api/health
+          # No database here, so readiness must say so (503) rather than crash.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/ready)" = 503
+          docker logs app

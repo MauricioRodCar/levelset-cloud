@@ -1,6 +1,6 @@
-# levelset-cloud — Product Requirements (v0.1, draft for sign-off)
+# levelset-cloud — Product Requirements (v0.1, approved 2026-10-28)
 
-Owner: Mauricio · Status: **draft, awaiting approval — no application code until approved** · Companion: [ARCHITECTURE.md](ARCHITECTURE.md)
+Owner: Mauricio · Status: **approved 2026-10-28** (build started with milestone 0) · Companion: [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ## 1. What this is
 
