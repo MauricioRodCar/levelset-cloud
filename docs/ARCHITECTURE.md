@@ -207,7 +207,7 @@ This section is specified here; it's implemented later in the Levelset repo as a
 ```json
 { "iss": "levelset-cloud", "aud": "levelset-desktop", "kid": "2026-10",
   "sub": "<license uuid>", "prd": "levelset", "tier": "pro|tester",
-  "features": ["paper_unlimited", "ai_hosted", "..."],
+  "features": ["<feature_a>", "<feature_b>"],
   "dev": "<server-side HMAC of device id_hash>",
   "iat": 0, "nbf": 0, "exp": "iat + TOKEN_TTL_DAYS",
   "rfa": "iat + TOKEN_REFRESH_HOURS", "ent": "<entitled-until, e.g. period end or tester expiry>" }
