@@ -38,8 +38,11 @@ npm run dev
 | `npm run build` | Next.js standalone build + bundled jobs in `dist/jobs/` |
 | `docker compose --profile app up --build` | Production image with the migrate job run first |
 | `bash scripts/check-public-safety.sh` | Scan tracked files for live keys and prices |
+| `node scripts/generate-signing-key.mjs [kid]` | New Ed25519 licence-signing key for `LICENSE_SIGNING_KEYS` (a secret: host secret store only) |
 
 Health: `GET /api/health` (liveness) and `GET /api/ready` (database reachable and all migrations applied).
+
+Desktop licence API: `POST /api/v1/licenses/{activate,refresh,deactivate}` and `GET /.well-known/jwks.json`. Contract in [docs/api/openapi.yaml](docs/api/openapi.yaml), error codes in [docs/api/errors.md](docs/api/errors.md).
 
 ## License
 

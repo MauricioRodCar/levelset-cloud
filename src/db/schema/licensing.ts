@@ -4,7 +4,7 @@ import { customers } from "./accounts";
 import { subscriptions } from "./billing";
 import { products } from "./catalog";
 import { id, tstz, versioned } from "./columns";
-import { licenseKind, licenseStatus } from "./enums";
+import { deactivationSource, licenseKind, licenseStatus } from "./enums";
 
 export const licenses = pgTable(
   "licenses",
@@ -55,6 +55,7 @@ export const activations = pgTable(
     firstSeenAt: tstz("first_seen_at").notNull().defaultNow(),
     lastSeenAt: tstz("last_seen_at").notNull().defaultNow(),
     deactivatedAt: tstz("deactivated_at"),
+    deactivatedBy: deactivationSource("deactivated_by"),
   },
   (t) => [
     // The same device never holds two active slots on one licence (FR-18).

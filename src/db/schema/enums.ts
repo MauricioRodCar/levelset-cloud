@@ -20,6 +20,9 @@ export const licenseKind = pgEnum("license_kind", ["subscription", "tester", "ma
 /** Admin/dispute override only; entitlement is computed (ARCHITECTURE §4.2). */
 export const licenseStatus = pgEnum("license_status", ["active", "suspended", "revoked"]);
 
+/** Who freed a device slot. Support frees it immediately; the others wait out the transfer cooldown (FR-20). */
+export const deactivationSource = pgEnum("deactivation_source", ["device", "customer", "support", "rotation"]);
+
 export const idempotencyState = pgEnum("idempotency_state", ["in_progress", "done"]);
 export const auditActorType = pgEnum("audit_actor_type", ["user", "system", "provider"]);
 

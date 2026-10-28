@@ -95,7 +95,11 @@ const schema = z
     if (env.PAYMENT_PROVIDER === "fake" && env.NODE_ENV === "production") {
       ctx.addIssue({ code: "custom", path: ["PAYMENT_PROVIDER"], message: "cannot be 'fake' in production" });
     }
-    if (env.NODE_ENV === "production" && !env.KEY_HASH_PEPPER) missing("KEY_HASH_PEPPER");
+    if (env.NODE_ENV === "production") {
+      for (const key of ["KEY_HASH_PEPPER", "LICENSE_SIGNING_KEYS", "LICENSE_ACTIVE_KID"] as const) {
+        if (!env[key]) missing(key);
+      }
+    }
     if (env.EMAIL_PROVIDER !== "console") {
       if (!env.EMAIL_API_KEY) missing("EMAIL_API_KEY");
       if (!env.EMAIL_FROM) missing("EMAIL_FROM");

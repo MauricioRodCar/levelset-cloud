@@ -66,10 +66,12 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...live, STRIPE_ALLOW_LIVE: "true" }).STRIPE_ALLOW_LIVE).toBe(true);
   });
 
-  it("refuses the fake provider in production and requires the hash pepper there", () => {
+  it("refuses the fake provider in production and requires the hash pepper and signing keys there", () => {
     expect(problems({ ...base, NODE_ENV: "production" })).toEqual([
       "PAYMENT_PROVIDER: cannot be 'fake' in production",
       "KEY_HASH_PEPPER: is required",
+      "LICENSE_SIGNING_KEYS: is required",
+      "LICENSE_ACTIVE_KID: is required",
     ]);
   });
 

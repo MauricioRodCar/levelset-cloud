@@ -1,4 +1,4 @@
-import { lt, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import { rateLimits } from "@/db/schema";
 import type { DbOrTx } from "./db";
 
@@ -38,6 +38,22 @@ export async function hitRateLimit(
     limit: rule.limit,
     resetAt: new Date(start.getTime() + rule.windowSeconds * 1000),
   };
+}
+
+/** Reads the current window without counting a hit (e.g. "too many failures from this IP?"). */
+export async function peekRateLimit(
+  db: DbOrTx,
+  bucket: string,
+  rule: RateLimitRule,
+  now = new Date(),
+): Promise<RateLimitResult> {
+  const start = windowStart(now, rule.windowSeconds);
+  const [row] = await db
+    .select({ count: rateLimits.count })
+    .from(rateLimits)
+    .where(and(eq(rateLimits.bucket, bucket), eq(rateLimits.windowStart, start)));
+  const count = row?.count ?? 0;
+  return { allowed: count < rule.limit, count, limit: rule.limit, resetAt: new Date(start.getTime() + rule.windowSeconds * 1000) };
 }
 
 /** Called by the purge job; windows older than `before` no longer matter. */

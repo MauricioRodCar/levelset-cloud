@@ -134,7 +134,7 @@ Every mutable table has `id uuid`, `created_at`, `updated_at` and **`version int
 | `subscription_transitions` | `subscription_id`, `from_state`, `to_state`, `event`, `webhook_event_id`, `at`, `seq` (insertion order) |
 | `reconciliation_runs` | `provider`, `started_at`, `finished_at`, `report jsonb` |
 | `licenses` | `customer_id`, `product_id`, `kind enum`, `subscription_id` **unique nullable**, `key_hash` unique nullable, `key_hint` (last 4) — both null until the customer first reveals the key, which generates it (the plaintext is never stored), `status enum`, `expires_at`, `device_limit_override` |
-| `activations` | `license_id`, `device_hash`, `label`, `os`, `app_version`, `first_seen_at`, `last_seen_at`, `deactivated_at`; **partial unique** `(license_id, device_hash) where deactivated_at is null` |
+| `activations` | `license_id`, `device_hash`, `label`, `os`, `app_version`, `first_seen_at`, `last_seen_at`, `deactivated_at`, `deactivated_by enum(device, customer, support, rotation)`; **partial unique** `(license_id, device_hash) where deactivated_at is null` |
 | `webhook_events` | `provider`, `event_id` (**unique pair**), `type`, `payload jsonb`, `received_at`, `processed_at`, `attempts`, `last_error` |
 | `idempotency_keys` | PK `(scope, key)`, `request_hash`, `state enum(in_progress, done)`, `response_status`, `response_body jsonb`, `expires_at` |
 | `audit_log` | `bigserial id`, `at`, `actor_type enum(user, system, provider)`, `actor_id`, `action`, `entity_type`, `entity_id`, `changes jsonb` (field → {from,to}, PII hashed), `reason`, `request_id`. **Append-only** |
@@ -200,9 +200,15 @@ This section is specified here; it's implemented later in the Levelset repo as a
 | Method / path | Body | Success | Errors (`code`) |
 |---|---|---|---|
 | `POST /api/v1/licenses/activate` | `{ key, device: { id_hash, label, os, app_version } }` | `200 { token, refresh_after, expires_at, tier, features[] }` | `invalid_key`, `license_revoked`, `license_not_entitled`, `device_limit_reached` (+ `devices[]`), `rate_limited` |
-| `POST /api/v1/licenses/refresh` | `{ key, token }` | `200` same shape | as above + `device_deactivated` |
+| `POST /api/v1/licenses/refresh` | `{ key, token }` | `200` same shape | as above + `device_deactivated`, `invalid_token` (an expired but genuine token is accepted) |
 | `POST /api/v1/licenses/deactivate` | `{ key, device_id_hash }` | `204` | `invalid_key` |
 | `GET /.well-known/jwks.json` | — | Ed25519 public keys (`kid`) | — |
+
+All codes and what the client should do: [docs/api/errors.md](api/errors.md). Implemented in `src/server/licensing/` (keys, tokens, entitlements, activation) with thin routes in `src/app/api/v1/licenses/`.
+
+**Device slots and the transfer cooldown (FR-20).** The same device activating again reuses its slot. A slot freed by the device itself or by the customer stays counted for `TRANSFER_COOLDOWN_HOURS` (default 24), which slows down key sharing; the `409` then includes `retry_after`. Slots freed by Support or by a key rotation are free immediately (`activations.deactivated_by`).
+
+**Rate limits (FR-23).** Per IP 60 / 10 min, per key 30 / hour, and invalid keys 10 / hour per IP (then `429` with `Retry-After`). Buckets store keyed hashes only.
 
 ### 7.2 Token (JWS, `alg: EdDSA`)
 
@@ -232,7 +238,7 @@ This section is specified here; it's implemented later in the Levelset repo as a
 
 - **Secrets:** env only (Container Apps secrets now; Key Vault reference later). `.env.example` lists names with placeholder values. CI greps for live keys and price patterns.
 - **Keys and hashes:** licence keys and device hashes are stored as `HMAC-SHA256(KEY_HASH_PEPPER, value)`. Magic-link and session tokens are stored as SHA-256 hashes.
-- **Signing keys:** `LICENSE_SIGNING_KEYS` is a JWK set of private keys. `LICENSE_ACTIVE_KID` selects the signer. Rotation: add the new key → publish JWKS → ship a Levelset build embedding both → switch the active kid → retire the old one after the max token TTL.
+- **Signing keys:** `LICENSE_SIGNING_KEYS` is a JSON array of Ed25519 private JWKs (generate one with `node scripts/generate-signing-key.mjs`). `LICENSE_ACTIVE_KID` selects the signer. Both are required in production; outside production a throwaway key is generated per process. Rotation: add the new key → publish JWKS → ship a Levelset build embedding both → switch the active kid → retire the old one after the max token TTL.
 - **Webhooks:** signature check on the raw body; timestamp tolerance; provider-only route.
 - **Web:** session cookies are `httpOnly`, `Secure` and `SameSite=Lax`; server actions get origin checks and CSRF tokens on admin forms; strict CSP; admin requires TOTP; admin bootstrap comes from `OWNER_EMAILS`.
 - **Abuse:** Postgres-backed fixed-window rate limits per hashed IP and per key on sign-in, activate and refresh; transfer cooldown.

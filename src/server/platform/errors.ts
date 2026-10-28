@@ -43,16 +43,32 @@ export class IdempotencyKeyReusedError extends AppError {
   }
 }
 
-export function problemResponse(err: AppError, requestId?: string): Response {
-  return Response.json(
-    {
-      type: `https://github.com/MauricioRodCar/levelset-cloud/blob/main/docs/errors.md#${err.code}`,
-      title: err.message,
-      status: err.status,
-      code: err.code,
-      ...err.extra,
-      ...(requestId ? { request_id: requestId } : {}),
-    },
-    { status: err.status, headers: { "content-type": "application/problem+json" } },
-  );
+export function problemBody(err: AppError, requestId?: string): Record<string, unknown> {
+  return {
+    type: `https://github.com/MauricioRodCar/levelset-cloud/blob/main/docs/api/errors.md#${err.code}`,
+    title: err.message,
+    status: err.status,
+    code: err.code,
+    ...err.extra,
+    ...(requestId ? { request_id: requestId } : {}),
+  };
+}
+
+export function problemResponse(err: AppError, requestId?: string, headers: HeadersInit = {}): Response {
+  return Response.json(problemBody(err, requestId), {
+    status: err.status,
+    headers: { ...headers, "content-type": "application/problem+json" },
+  });
+}
+
+export class RateLimitedError extends AppError {
+  constructor(readonly retryAfterSeconds: number) {
+    super("rate_limited", 429, "Too many requests; try again later", { retry_after_seconds: retryAfterSeconds });
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(issues: { path: string; message: string }[]) {
+    super("validation_failed", 400, "The request body is not valid", { issues });
+  }
 }

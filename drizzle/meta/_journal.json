@@ -22,6 +22,13 @@
       "when": 1793172944400,
       "tag": "0002_billing_core",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793173282630,
+      "tag": "0003_device_deactivation_source",
+      "breakpoints": true
     }
   ]
 }
